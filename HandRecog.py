@@ -302,21 +302,21 @@ class HandTrackingDynamic:
         wTMFBKDist_XY = wTMFBKDist[0]
         handIsUpright, _ = self.findOrientation()
 
-        forwardBufferAndScalingFactor = 0.3
+        forwardBufferAndScalingFactor = 0.1
         
-        global max_wTMFBKDist
-        max_wTMFBKDist = 200
-            #The higher this max, the less prone it is to cause forward tilt to quickly reach zero in the neutral position. In other words, higher = more sensative. 
-
-        if wTMFBKDist_XY > max_wTMFBKDist: 
-              max_wTMFBKDist = wTMFBKDist_XY
-            #Even with the global variable, the max Dist values is always the intial assignment until dist grows larger. It doesn't stick once pushed higher, not sure why. 
+        if not hasattr(HandTrackingDynamic, 'max_wTMFBKDist'):
+            HandTrackingDynamic.max_wTMFBKDist = wTMFBKDist_XY
+            # Initialize class variable.
+            # We use the HandTrackingDynamic. class reference to make sure the variable "sticks".
+        if wTMFBKDist_XY > HandTrackingDynamic.max_wTMFBKDist: 
+            HandTrackingDynamic.max_wTMFBKDist = wTMFBKDist_XY
+                # If absolute distance ever grows larger than any point in the past during the current instance, maxPalmLength is updated.
 
         if handIsUpright:
-            unbufferedForwardTilt =  1- (wTMFBKDist_XY/max_wTMFBKDist)
+            unbufferedForwardTilt =  1- (wTMFBKDist_XY/HandTrackingDynamic.max_wTMFBKDist)
                 #If the hand is upright, forward tilt increases as the distance from wrist to middle finger base knuckle gets smaller.
         else:
-            unbufferedForwardTilt = (wTMFBKDist_XY/max_wTMFBKDist)
+            unbufferedForwardTilt = (wTMFBKDist_XY/HandTrackingDynamic.max_wTMFBKDist)
                 #If its downwards, forward tilt continues getting higher the more and more the middle finger base knuckle passes the wrist. 
 
         if (unbufferedForwardTilt > forwardBufferAndScalingFactor) and handIsUpright:
@@ -340,6 +340,10 @@ class HandTrackingDynamic:
         forwardTilt = round(forwardTilt, 2)
             #Rounds off two 2 decimal points. 
         
+        if forwardTilt == 0:
+            HandTrackingDynamic.max_wTMFBKDist = wTMFBKDist_XY
+            #Resets maxPalmLength to the current palm length if rotation is small enough. Prevents the maxPalmLength from getting too large. 
+            #In other words, if the hand is not rotating, reset the maxPalmLength to the current palm length.
 
         unbufferedSidewaysTilt = wTMFBKHorizontalness[0]
             #Assigns rounded XY uprightness to sideways tilt. 
