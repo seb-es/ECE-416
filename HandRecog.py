@@ -250,7 +250,6 @@ class HandTrackingDynamic:
             HandTrackingDynamic.maxPalmLength = palmLengthXY
                 # If absolute distance ever grows larger than any point in the past during the current instance, maxPalmLength is updated.
 
-        
         print(HandTrackingDynamic.maxPalmLength)
         unbufferedRotation = 1- (palmLengthXY/HandTrackingDynamic.maxPalmLength)
             # This statement inherently makes it so that the neutral position is when the palm faces the camera. 
