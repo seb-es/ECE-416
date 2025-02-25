@@ -239,17 +239,18 @@ class HandTrackingDynamic:
         _, thumbOnLeft = self.findOrientation()
         frame = self.drawMarkers(self.tipIds[1] - 3, self.tipIds[4] - 3, "red", frame)
 
-        bufferAndScalingFactor = 0.05
+        bufferAndScalingFactor = 0.1
             #A value from 0-1 which determines how much the hand needs to be rotated from the starting position to activate rotation tracking and also how senstive the rotation is past this buffer point.
         
         if not hasattr(HandTrackingDynamic, 'maxPalmLength'):
-            HandTrackingDynamic.maxPalmLength = 110
-            # Initialize class variable only if it doesn't exist yet
-
+            HandTrackingDynamic.maxPalmLength = palmLengthXY
+            # Initialize class variable.
+            # We use the HandTrackingDynamic. class reference to make sure the variable "sticks".
         if palmLengthXY > HandTrackingDynamic.maxPalmLength: 
             HandTrackingDynamic.maxPalmLength = palmLengthXY
                 # If absolute distance ever grows larger than any point in the past during the current instance, maxPalmLength is updated.
-            # A starting value of 110 pixels is used to prevent from very small movements before the max distance value becomes accurate from heavily influence rotation. It's a buffer value. 
+
+        
         print(HandTrackingDynamic.maxPalmLength)
         unbufferedRotation = 1- (palmLengthXY/HandTrackingDynamic.maxPalmLength)
             # This statement inherently makes it so that the neutral position is when the palm faces the camera. 
@@ -279,6 +280,11 @@ class HandTrackingDynamic:
             #Clamps rotation to be in the 0 - 1 range. 
         rotation = round(rotation, 2)
             #Rounds off two 2 decimal points. 
+
+        if rotation == 0:
+            HandTrackingDynamic.maxPalmLength = palmLengthXY
+            #Resets maxPalmLength to the current palm length if rotation is small enough. Prevents the maxPalmLength from getting too large. 
+            #In other words, if the hand is not rotating, reset the maxPalmLength to the current palm length.
 
         return rotation, HandTrackingDynamic.maxPalmLength
     
@@ -501,11 +507,20 @@ class HandTrackingDynamic:
 
     def completeInfo(self):
         landmarkCoordinates = self.lmsList
+        #List of 23 landmark coordinates, each item being a list of 4 elements: [id, x, y, z]
+        #Landmarks21 and 22 are the center of mass with and without fingers respectively. 
         centerOfMassWithFingers, centerOfMassNoFingers = self.findAndMarkCenterOfMass()
+        #Both of these are lists of 4 elements: [id, x, y, z]
         handIsUpright, thumbOnLeft = self.findOrientation()
+        #Both of these are booleans. 
         rotation, _ = self.findRotation()
+        #A float between -1 and 1. 
         forwardTilt, sidewaysTilt = self.findTilt()
+        #Both of these are floats between -1 and 1. 
         fingers, handMsg, handisClosed = self.findFingersOpen()
+        #fingers is a list of 5 integers between 0 and 1. 
+        #handMsg string that is either "closed", "partially open", or "open". 
+        #handisClosed is a boolean. 
 
         return landmarkCoordinates, centerOfMassWithFingers, centerOfMassNoFingers, handIsUpright, thumbOnLeft, rotation, forwardTilt, sidewaysTilt, fingers, handMsg, handisClosed
     
@@ -568,8 +583,8 @@ def main():
                 cv2.putText(frame, ("Rotation: " + str(rotation)), (5,90), cv2.FONT_HERSHEY_PLAIN, fontSize, (0,255,0), fontThickness)
                 cv2.putText(frame, ("Forward Tilt: " + str(forwardTilt) + "  Sideways Tilt:" + str(sidewaysTilt)), (5,120), cv2.FONT_HERSHEY_PLAIN, fontSize, (0,255,0), fontThickness)
                 cv2.putText(frame, ("Center of Mass:"), (5,160), cv2.FONT_HERSHEY_PLAIN, fontSize, (0,255,0), fontThickness)
-                cv2.putText(frame, ("  With Fingers: " + str(centerOfMassWithFingers[1:])), (5,190), cv2.FONT_HERSHEY_PLAIN, fontSize, (0,255,0), fontThickness)
-                cv2.putText(frame, ("  Without Fingers: " + str(centerOfMassNoFingers[1:])), (5,220), cv2.FONT_HERSHEY_PLAIN, fontSize, (0,255,0), fontThickness)
+                cv2.putText(frame, ("  With Fingers: " + str(centerOfMassWithFingers[1:4])), (5,190), cv2.FONT_HERSHEY_PLAIN, fontSize, (0,255,0), fontThickness)
+                cv2.putText(frame, ("  Without Fingers: " + str(centerOfMassNoFingers[1:4])), (5,220), cv2.FONT_HERSHEY_PLAIN, fontSize, (0,255,0), fontThickness)
 
             else: 
                 cv2.putText(frame, ("Awaiting Hand..."), (5,70), cv2.FONT_HERSHEY_PLAIN, 2, (74,26,255), 2)
