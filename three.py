@@ -291,8 +291,6 @@ def main():
                 [0,0,1],    # 2nd Joint Rotation Axis
                 [0,0,1]])    # 3rd Joint Rotation Axis
 
-
-
   # A 2D array that lists the translations from the previous joint to the current joint
   # The first translation is from the base frame to joint 1 (which is equal to the base frame)
   # The second translation is from joint 1 to joint 2
@@ -301,17 +299,17 @@ def main():
   # This tutorial teaches you how to draw kinematic diagrams:
   # https://automaticaddison.com/how-to-assign-denavit-hartenberg-frames-to-robotic-arms/
 
-  a1 = 4.7
-  a2 = 5.9
-  a3 = 5.4
-  a4 = 6.0
-  a5 = 5.0
+  a1 = 1
+  a2 = 1.75
+  a3 = 1.5
+  a4 = 4.25
+  a5 = 7
   t = np.array([[0,0,0],    #Base to Joint 1 (Our base is a joint)
-                [0,0,a1],  #Joint 1 to Joint 2
-                [a2,0,0]])
+                [a2,0.25,a1],  #Joint 1 to Joint 2
+                [a3,a4,0]])  #Joint 2 to Joint 3
  
   # Position of end effector in joint 5 (i.e. the last joint) frame
-  p_eff_2 = [a3+a4,0,0]
+  p_eff_2 = [a5,0,0]
      
   # Create an object of the RoboticArm class
   k_c = RoboticArm(k,t)
@@ -320,21 +318,20 @@ def main():
   q_0 = np.array([0,0,0])
      
   # desired end position for the end effector with respect to the base frame of the robotic arm
-  endeffector_goal_position = np.array([4.0,10.0,a1 + a4])
- 
-  # Display the starting position of each joint in the global frame
-  #for i in np.arange(0,k_c.N_joints):
-    #print(f'joint {i} position = {k_c.position(q_0,index=i)}')
- 
-  #print(f'end_effector = {k_c.position(q_0,index=-1,p_i=p_eff_2)}')
-  #print(f'goal = {endeffector_goal_position}') 
- 
-  # Return joint angles that result in the end effector reaching endeffector_goal_position
-  final_q = k_c.pseudo_inverse(q_0, p_eff_N=p_eff_2, goal_position=endeffector_goal_position, max_steps=500)
-     
-  # Final Joint Angles in degrees   
-  print('\n\nFinal Joint Angles in Degrees')
-  print(f'Joint 1: {np.degrees(final_q[0])} , Joint 2: {np.degrees(final_q[1])}, Joint 3: {np.degrees(final_q[2])}')
+  endeffector_goal_position = np.array([0,0,5])
+
+  # Check if goal position is within bounds
+  magnitude = np.sqrt(np.sum(np.square(endeffector_goal_position)))
+  if magnitude > 12:
+      print(f"Goal position magnitude {magnitude:.2f} exceeds maximum reach of 12 units")
+      print("Position is out of bounds")
+  else:
+      # Return joint angles that result in the end effector reaching endeffector_goal_position
+      final_q = k_c.pseudo_inverse(q_0, p_eff_N=p_eff_2, goal_position=endeffector_goal_position, max_steps=500)
+         
+      # Final Joint Angles in degrees   
+      print('\n\nFinal Joint Angles in Degrees')
+      print(f'Joint 1: {np.degrees(final_q[0])} , Joint 2: {np.degrees(final_q[1])}, Joint 3: {np.degrees(final_q[2])}')
  #if angles are over 90 then dont send
 if __name__ == '__main__':
   main()
