@@ -8,7 +8,7 @@ from HandRecog import HandTrackingDynamic
 
 SERVER_URI = "ws://10.203.94.66:8765"
 
-async def send_angles(angles, forwardTilt, handIsClosed):
+async def send_angles(angles, handIsClosed, servo5_angle):
     try:
         async with websockets.connect(SERVER_URI) as websocket:
             # Convert to degrees and add 90 degree offset for servo 1
@@ -16,7 +16,7 @@ async def send_angles(angles, forwardTilt, handIsClosed):
                 int(np.degrees(angles[0])) + 90,  # t1 offset
                 int(np.degrees(angles[1])),       # t2
                 180-int(np.degrees(angles[2])+150),      # t3 (negative)
-                0, int((-forwardTilt*70 + 70)),          # Fixed angles for servos 4-5
+                0, servo5_angle,          # Fixed angle for servo 4, variable for servo 5
                 0 if handIsClosed else 120      # Servo 6 based on hand state
             ]
             data = {"servo_angles": servo_angles}
@@ -27,6 +27,8 @@ async def send_angles(angles, forwardTilt, handIsClosed):
         print(f"Error sending angles: {e}")
 
 def main():
+    servo5_angle = 70
+
     ctime = 0
     ptime = 0
     frame_count = 0
@@ -65,6 +67,14 @@ def main():
             frame = detector.markOrientation(frame)
             rotation, _ = detector.findRotation(frame)
             forwardTilt, sidewaysTilt = detector.findTilt(frame)
+            forwardTilt = max(min(forwardTilt, 0.5), -0.5)  # Clamp forwardTilt between -0.5 and 0.5
+            
+            # Update servo5_angle based on forwardTilt
+            if forwardTilt == 0.5:
+                servo5_angle = min(160, servo5_angle - 4)  # Increment but don't exceed 180
+            elif forwardTilt == -0.5:
+                servo5_angle = max(20, servo5_angle + 4)    # Decrement but don't go below 0
+            
             centerOfMassWithFingers, centerOfMassNoFingers = detector.findAndMarkCenterOfMass(frame)
             fingers, handMsg, handIsClosed = detector.findFingersOpen()
 
@@ -73,9 +83,9 @@ def main():
                 displacement = np.array(centerOfMassNoFingers[1:4]) - reference_point
 
                 # Map hand position to robot target coordinates
-                X = 7 - displacement[2]/150
-                Y = -displacement[0]/150 
-                Z = 5 + displacement[1]/75 #works good
+                X = 7 - displacement[2]/100
+                Y = -displacement[0]/50
+                Z = 5 + displacement[1]/50 #works good
 
                 try:
                     # Calculate inverse kinematics
@@ -128,7 +138,7 @@ def main():
                     print(f't3: {np.degrees(angles[2]):.2f}°')
 
                     # Send angles to servos
-                    asyncio.run(send_angles(angles, forwardTilt, handIsClosed))
+                    asyncio.run(send_angles(angles, handIsClosed, servo5_angle))
 
                 except ValueError as e:
                     print(f"Inverse kinematics error: {e}")
