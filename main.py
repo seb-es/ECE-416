@@ -8,7 +8,7 @@ from HandRecog import HandTrackingDynamic
 
 SERVER_URI = "ws://10.203.94.66:8765"
 
-async def send_angles(angles, handIsClosed):
+async def send_angles(angles, forwardTilt, handIsClosed):
     try:
         async with websockets.connect(SERVER_URI) as websocket:
             # Convert to degrees and add 90 degree offset for servo 1
@@ -16,7 +16,7 @@ async def send_angles(angles, handIsClosed):
                 int(np.degrees(angles[0])) + 90,  # t1 offset
                 int(np.degrees(angles[1])),       # t2
                 180-int(np.degrees(angles[2])+150),      # t3 (negative)
-                0, 90,                          # Fixed angles for servos 4-5
+                0, int((-forwardTilt*70 + 70)),          # Fixed angles for servos 4-5
                 0 if handIsClosed else 120      # Servo 6 based on hand state
             ]
             data = {"servo_angles": servo_angles}
@@ -63,8 +63,10 @@ def main():
 
         if len(lmsList[0]) != 0:
             frame = detector.markOrientation(frame)
-            _, centerOfMassNoFingers = detector.findAndMarkCenterOfMass(frame)
-            handIsClosed = detector.findFingersOpen()[2]
+            rotation, _ = detector.findRotation(frame)
+            forwardTilt, sidewaysTilt = detector.findTilt(frame)
+            centerOfMassWithFingers, centerOfMassNoFingers = detector.findAndMarkCenterOfMass(frame)
+            fingers, handMsg, handIsClosed = detector.findFingersOpen()
 
             if frame_count % 2 == 0:
                 # Calculate displacement from reference point
@@ -72,7 +74,7 @@ def main():
 
                 # Map hand position to robot target coordinates
                 X = 7 - displacement[2]/150
-                Y = -displacement[0]/200 
+                Y = -displacement[0]/150 
                 Z = 5 + displacement[1]/75 #works good
 
                 try:
@@ -126,14 +128,17 @@ def main():
                     print(f't3: {np.degrees(angles[2]):.2f}°')
 
                     # Send angles to servos
-                    asyncio.run(send_angles(angles, handIsClosed))
+                    asyncio.run(send_angles(angles, forwardTilt, handIsClosed))
 
                 except ValueError as e:
                     print(f"Inverse kinematics error: {e}")
 
-            # Display hand tracking info
-            cv2.putText(frame, ("Hand Position: " + str(centerOfMassNoFingers[1:])), (5,60), cv2.FONT_HERSHEY_PLAIN, fontSize, (0,255,0), fontThickness)
-
+            cv2.putText(frame, ("Fingers Open: " + str(fingers) + " " + str(sum(fingers[0:5])) + "  Hand is " + handMsg), (5,60), cv2.FONT_HERSHEY_PLAIN, fontSize, (0,255,0), fontThickness)
+            cv2.putText(frame, ("Rotation: " + str(rotation)), (5,90), cv2.FONT_HERSHEY_PLAIN, fontSize, (0,255,0), fontThickness)
+            cv2.putText(frame, ("Forward Tilt: " + str(forwardTilt) + "  Sideways Tilt:" + str(sidewaysTilt)), (5,120), cv2.FONT_HERSHEY_PLAIN, fontSize, (0,255,0), fontThickness)
+            cv2.putText(frame, ("Center of Mass:"), (5,160), cv2.FONT_HERSHEY_PLAIN, fontSize, (0,255,0), fontThickness)
+            cv2.putText(frame, ("  With Fingers: " + str(centerOfMassWithFingers[1:])), (5,190), cv2.FONT_HERSHEY_PLAIN, fontSize, (0,255,0), fontThickness)
+            cv2.putText(frame, ("  Without Fingers: " + str(centerOfMassNoFingers[1:])), (5,220), cv2.FONT_HERSHEY_PLAIN, fontSize, (0,255,0), fontThickness)
         else:
             cv2.putText(frame, ("Awaiting Hand..."), (5,70), cv2.FONT_HERSHEY_PLAIN, 2, (74,26,255), 2)
 
