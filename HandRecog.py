@@ -239,18 +239,18 @@ class HandTrackingDynamic:
         _, thumbOnLeft = self.findOrientation()
         frame = self.drawMarkers(self.tipIds[1] - 3, self.tipIds[4] - 3, "red", frame)
 
-        bufferAndScalingFactor = 0.05
+        bufferAndScalingFactor = 0.1
             #A value from 0-1 which determines how much the hand needs to be rotated from the starting position to activate rotation tracking and also how senstive the rotation is past this buffer point.
         
         if not hasattr(HandTrackingDynamic, 'maxPalmLength'):
-            HandTrackingDynamic.maxPalmLength = 110
-            # Initialize class variable only if it doesn't exist yet
-
+            HandTrackingDynamic.maxPalmLength = palmLengthXY
+            # Initialize class variable.
+            # We use the HandTrackingDynamic. class reference to make sure the variable "sticks".
         if palmLengthXY > HandTrackingDynamic.maxPalmLength: 
             HandTrackingDynamic.maxPalmLength = palmLengthXY
                 # If absolute distance ever grows larger than any point in the past during the current instance, maxPalmLength is updated.
-            # A starting value of 110 pixels is used to prevent from very small movements before the max distance value becomes accurate from heavily influence rotation. It's a buffer value. 
-        #print(HandTrackingDynamic.maxPalmLength)
+
+        print(HandTrackingDynamic.maxPalmLength)
         unbufferedRotation = 1- (palmLengthXY/HandTrackingDynamic.maxPalmLength)
             # This statement inherently makes it so that the neutral position is when the palm faces the camera. 
             # As the hand turns to the side in either direction, the distance will get smaller, increasing the unbuffered rotation value. 
@@ -280,6 +280,11 @@ class HandTrackingDynamic:
         rotation = round(rotation, 2)
             #Rounds off two 2 decimal points. 
 
+        if rotation == 0:
+            HandTrackingDynamic.maxPalmLength = palmLengthXY
+            #Resets maxPalmLength to the current palm length if rotation is small enough. Prevents the maxPalmLength from getting too large. 
+            #In other words, if the hand is not rotating, reset the maxPalmLength to the current palm length.
+
         return rotation, HandTrackingDynamic.maxPalmLength
     
 
@@ -297,21 +302,21 @@ class HandTrackingDynamic:
         wTMFBKDist_XY = wTMFBKDist[0]
         handIsUpright, _ = self.findOrientation()
 
-        forwardBufferAndScalingFactor = 0.3
+        forwardBufferAndScalingFactor = 0.1
         
-        global max_wTMFBKDist
-        max_wTMFBKDist = 200
-            #The higher this max, the less prone it is to cause forward tilt to quickly reach zero in the neutral position. In other words, higher = more sensative. 
-
-        if wTMFBKDist_XY > max_wTMFBKDist: 
-              max_wTMFBKDist = wTMFBKDist_XY
-            #Even with the global variable, the max Dist values is always the intial assignment until dist grows larger. It doesn't stick once pushed higher, not sure why. 
+        if not hasattr(HandTrackingDynamic, 'max_wTMFBKDist'):
+            HandTrackingDynamic.max_wTMFBKDist = wTMFBKDist_XY
+            # Initialize class variable.
+            # We use the HandTrackingDynamic. class reference to make sure the variable "sticks".
+        if wTMFBKDist_XY > HandTrackingDynamic.max_wTMFBKDist: 
+            HandTrackingDynamic.max_wTMFBKDist = wTMFBKDist_XY
+                # If absolute distance ever grows larger than any point in the past during the current instance, maxPalmLength is updated.
 
         if handIsUpright:
-            unbufferedForwardTilt =  1- (wTMFBKDist_XY/max_wTMFBKDist)
+            unbufferedForwardTilt =  1- (wTMFBKDist_XY/HandTrackingDynamic.max_wTMFBKDist)
                 #If the hand is upright, forward tilt increases as the distance from wrist to middle finger base knuckle gets smaller.
         else:
-            unbufferedForwardTilt = (wTMFBKDist_XY/max_wTMFBKDist)
+            unbufferedForwardTilt = (wTMFBKDist_XY/HandTrackingDynamic.max_wTMFBKDist)
                 #If its downwards, forward tilt continues getting higher the more and more the middle finger base knuckle passes the wrist. 
 
         if (unbufferedForwardTilt > forwardBufferAndScalingFactor) and handIsUpright:
@@ -335,6 +340,10 @@ class HandTrackingDynamic:
         forwardTilt = round(forwardTilt, 2)
             #Rounds off two 2 decimal points. 
         
+        if forwardTilt == 0:
+            HandTrackingDynamic.max_wTMFBKDist = wTMFBKDist_XY
+            #Resets maxPalmLength to the current palm length if rotation is small enough. Prevents the maxPalmLength from getting too large. 
+            #In other words, if the hand is not rotating, reset the maxPalmLength to the current palm length.
 
         unbufferedSidewaysTilt = wTMFBKHorizontalness[0]
             #Assigns rounded XY uprightness to sideways tilt. 
@@ -501,19 +510,20 @@ class HandTrackingDynamic:
 
     def completeInfo(self):
         landmarkCoordinates = self.lmsList
-        #21 entry list, each entry having 3 entries (x,y,z)
+        #List of 23 landmark coordinates, each item being a list of 4 elements: [id, x, y, z]
+        #Landmarks21 and 22 are the center of mass with and without fingers respectively. 
         centerOfMassWithFingers, centerOfMassNoFingers = self.findAndMarkCenterOfMass()
-        #both 3 entry lists, again, each (x,y,z)
+        #Both of these are lists of 4 elements: [id, x, y, z]
         handIsUpright, thumbOnLeft = self.findOrientation()
-        #booleans
+        #Both of these are booleans. 
         rotation, _ = self.findRotation()
-        #float ranging from -1 to 1 (clamped to not be outside this range)
+        #A float between -1 and 1. 
         forwardTilt, sidewaysTilt = self.findTilt()
-        #floats ranging from -1 to 1 (clamped to not be outside this range)
+        #Both of these are floats between -1 and 1. 
         fingers, handMsg, handisClosed = self.findFingersOpen()
-        #fingers is a 5 entry list, 0 for each closed finger, 1 for each open. Thumb is first entry, pinkie is last. 
-        #hand message is a string, either "closed", "partially open", or "open"
-        #handisClosed is a boolean
+        #fingers is a list of 5 integers between 0 and 1. 
+        #handMsg string that is either "closed", "partially open", or "open". 
+        #handisClosed is a boolean. 
 
         return landmarkCoordinates, centerOfMassWithFingers, centerOfMassNoFingers, handIsUpright, thumbOnLeft, rotation, forwardTilt, sidewaysTilt, fingers, handMsg, handisClosed
     
@@ -576,8 +586,8 @@ def main():
                 cv2.putText(frame, ("Rotation: " + str(rotation)), (5,90), cv2.FONT_HERSHEY_PLAIN, fontSize, (0,255,0), fontThickness)
                 cv2.putText(frame, ("Forward Tilt: " + str(forwardTilt) + "  Sideways Tilt:" + str(sidewaysTilt)), (5,120), cv2.FONT_HERSHEY_PLAIN, fontSize, (0,255,0), fontThickness)
                 cv2.putText(frame, ("Center of Mass:"), (5,160), cv2.FONT_HERSHEY_PLAIN, fontSize, (0,255,0), fontThickness)
-                cv2.putText(frame, ("  With Fingers: " + str(centerOfMassWithFingers[1:])), (5,190), cv2.FONT_HERSHEY_PLAIN, fontSize, (0,255,0), fontThickness)
-                cv2.putText(frame, ("  Without Fingers: " + str(centerOfMassNoFingers[1:])), (5,220), cv2.FONT_HERSHEY_PLAIN, fontSize, (0,255,0), fontThickness)
+                cv2.putText(frame, ("  With Fingers: " + str(centerOfMassWithFingers[1:4])), (5,190), cv2.FONT_HERSHEY_PLAIN, fontSize, (0,255,0), fontThickness)
+                cv2.putText(frame, ("  Without Fingers: " + str(centerOfMassNoFingers[1:4])), (5,220), cv2.FONT_HERSHEY_PLAIN, fontSize, (0,255,0), fontThickness)
 
             else: 
                 cv2.putText(frame, ("Awaiting Hand..."), (5,70), cv2.FONT_HERSHEY_PLAIN, 2, (74,26,255), 2)
