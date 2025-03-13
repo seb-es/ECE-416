@@ -449,7 +449,7 @@ class HandTrackingDynamic:
        
         if handIsUpright:
             centerOfMassttoThumbTipDistance, _ , _ , _ = self.defineDistanceAndOrientation(22, self.tipIds[0])
-            centerOfMassttoThumbComparisonKnuckleDistance, _ , _ , _ = self.defineDistanceAndOrientation(22, self.tipIds[0] - 2)
+            centerOfMassttoThumbComparisonKnuckleDistance, _ , _ , _ = self.defineDistanceAndOrientation(22, self.tipIds[0] - 1)
                 #When hand is upright, use center of mass with fingers as the point of comparison. 
 
         else: 
