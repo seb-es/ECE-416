@@ -269,7 +269,7 @@ class HandTrackingDynamic:
            ((pointerBaseKnuckleZ < pinkieBaseKnuckleZ) and not(thumbOnLeft)):
             rotation =  unsignedRotation * 1.5
         else: 
-            rotation = unsignedRotation * -1 * 1.75
+            rotation = unsignedRotation * -1 * 2.1
 
                     #If the hand rotates to the left, the rotation value will cause counterclockwise (positive) rotaiton. If not, counter-clockwise (negative) rotation will occur. 
                     #Statements have been made such that this behavior occurs regardless of hand being used. 
