@@ -218,7 +218,7 @@ class HandTrackingDynamic:
         else: 
             handIsUpright = False
 
-        return handIsUpright, thumbOnLeft
+        return handIsUpright, thumbOnLeft, handVerticalOrientationXY, handHorizontalOrientationXY
     
     def markOrientation(self, frame): 
 
@@ -236,7 +236,7 @@ class HandTrackingDynamic:
         palmLength, _, _, _ = self.defineDistanceAndOrientation(self.tipIds[1] - 3, self.tipIds[4] - 3)
         palmLengthXY = palmLength[0]
             # Retrieves information about z coords of target knuckles as well as distance in between.
-        _, thumbOnLeft = self.findOrientation()
+        _, thumbOnLeft, _, _ = self.findOrientation()
         frame = self.drawMarkers(self.tipIds[1] - 3, self.tipIds[4] - 3, "red", frame)
 
         bufferAndScalingFactor = 0.1
@@ -300,7 +300,7 @@ class HandTrackingDynamic:
         #Abbreviations cause normal names are massive
         
         wTMFBKDist_XY = wTMFBKDist[0]
-        handIsUpright, _ = self.findOrientation()
+        handIsUpright, _, _, _ = self.findOrientation()
 
         forwardBufferAndScalingFactor = 0.1
         
@@ -423,14 +423,10 @@ class HandTrackingDynamic:
         
         self.lmsList.append(centerOfMassWithFingers)
         self.lmsList.append(centerOfMassNoFingers)
+        #Adds the centers of mass to the lmsList as landmarks with ID 21 and 22.
 
         frame = cv2.circle(frame, (centerOfMassWithFingersX, centerOfMassWithFingersYDraw), 5, (255,255,0), cv2.FILLED)
         frame = cv2.circle(frame, (centerOfMassNoFingersX, centerOfMassNoFingersYDraw), 5, (0,255,255), cv2.FILLED)
-
-            #Adds the centers of mass to the lmsList as landmarks with ID 21 and 22.
-
-
-
                 #cy = int((1 - lm.y) * h) 
                 #cyDraw = cy
                 #Defines seperate y coordinates specifically for drawing because the flip applied below flips the orientation of drawings if used as is.
@@ -444,9 +440,11 @@ class HandTrackingDynamic:
 
     def findFingersOpen(self):
         fingers=[]
-        handIsUpright, _ = self.findOrientation()
+        handIsUpright, _, handVerticalOrientationXY, _ = self.findOrientation()
         wristZ, middleFingerBaseKnuckleZ = self.lmsList[0][3], self.lmsList[self.tipIds[2] - 3][3]
        
+
+       #Thumb orientation. 
         if handIsUpright:
             centerOfMassttoThumbTipDistance, _ , _ , _ = self.defineDistanceAndOrientation(22, self.tipIds[0])
             centerOfMassttoThumbComparisonKnuckleDistance, _ , _ , _ = self.defineDistanceAndOrientation(22, self.tipIds[0] - 1)
@@ -468,28 +466,50 @@ class HandTrackingDynamic:
         else:
             fingers.append(1)
 
+
+        #Finger orientation.
         for id, _ in enumerate(self.tipIds[1:5]):
             id += 1
                 #accounts for count starting at 0 instead of 1. 
+            _ , _ , FingerComparisonKnuckletoTipUprightness , _ = self.defineDistanceAndOrientation(self.tipIds[id] -2, self.tipIds[id])
+
             if (handIsUpright and middleFingerBaseKnuckleZ > wristZ) or not(handIsUpright):
                 centerOfMassttoFingerTipDistance, _ , _ , _ = self.defineDistanceAndOrientation(22, self.tipIds[id])
                 centerOfMassttoFingerComparisonKnuckleDistance, _ , _ , _ = self.defineDistanceAndOrientation(22, self.tipIds[id] - 2)
                     #When hand is upright and not forwared tilted OR downright, use center of mass (without fingers) VS. second knuckles as the point of comparison. 
+            
+                    #Determines extension based on uprightness. 
             else: 
                 centerOfMassttoFingerTipDistance, _ , _ , _ = self.defineDistanceAndOrientation(21, self.tipIds[id])
                 centerOfMassttoFingerComparisonKnuckleDistance, _ , _ , _ = self.defineDistanceAndOrientation(21, self.tipIds[id]  - 3)    
-                    #When the hand is upright and tilted forard, the detection works better when the point of comparison is center of mass (with fingers) VS. base kunckles. 
+                    #When the hand is upright and tilted forward, the detection works better when the point of comparison is center of mass (with fingers) VS. base kunckles.
+                
+            if handIsUpright:
+                PositiveOrientation = FingerComparisonKnuckletoTipUprightness[0]
+            else:
+                PositiveOrientation = -1 * FingerComparisonKnuckletoTipUprightness[0]
+                    #Determines extension based on uprightness, but applies negative to account for downward direction. 
 
             centerOfMassttoFingerTipDistanceXY = abs(centerOfMassttoFingerTipDistance[0])
                     #measures XY distance from center of mass to finger tip. 
             centerOfMassttoFingerComparisonKnuckleDistanceXY = abs(centerOfMassttoFingerComparisonKnuckleDistance[0])
                     #measures XY distance from center of mass to landmark 1 step below thumb tip.
-             
-            if centerOfMassttoFingerComparisonKnuckleDistanceXY > centerOfMassttoFingerTipDistanceXY:
-                    #The moment the finger tip to center of mass distance is smaller than the center of mass to second knuckle distance, finger is closed. 
-                fingers.append(0)
-            else:
-                fingers.append(1)
+                    
+            if abs(handVerticalOrientationXY) > 0.8: 
+                #If the hand is not in the transitional area, incorporate use of the PositiveOrientation value.
+                #0.8 is about the value where it enters the transitional area. 
+                if (centerOfMassttoFingerTipDistanceXY < centerOfMassttoFingerComparisonKnuckleDistanceXY) or (PositiveOrientation < 0):
+                        #The moment the finger tip to center of mass distance is smaller than the center of mass to comparison knuckle distance, finger is closed. 
+                    fingers.append(0)
+                else:
+                    fingers.append(1)
+            else: 
+                #If the hand is in the transitional area, don't use the PositiveOrientation value. 
+                if (centerOfMassttoFingerTipDistanceXY < centerOfMassttoFingerComparisonKnuckleDistanceXY):
+                        #The moment the finger tip to center of mass distance is smaller than the center of mass to comparison knuckle distance, finger is closed. 
+                    fingers.append(0)
+                else:
+                    fingers.append(1)
     
         if sum(fingers[1:5]) == 0:
             handisClosed = True
@@ -514,8 +534,9 @@ class HandTrackingDynamic:
         #Landmarks21 and 22 are the center of mass with and without fingers respectively. 
         centerOfMassWithFingers, centerOfMassNoFingers = self.findAndMarkCenterOfMass()
         #Both of these are lists of 4 elements: [id, x, y, z]
-        handIsUpright, thumbOnLeft = self.findOrientation()
-        #Both of these are booleans. 
+        handIsUpright, thumbOnLeft, handVerticalOrientationXY, handHorizontalOrientationXY = self.findOrientation()
+        #The first two of these are booleans. The other two are values from 0 - 1 which represent verticality and horizontality respectively. 
+        #Add the last two if you need them to the return list below. I don't want to mess with your retrieval. 
         rotation, _ = self.findRotation()
         #A float between -1 and 1. 
         forwardTilt, sidewaysTilt = self.findTilt()
