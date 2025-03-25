@@ -508,7 +508,7 @@ class HandTrackingDynamic:
         
         return fingers, handMsg, handisClosed
 
-    def completeInfo(self):
+    def completeInfo(self,frame):
         landmarkCoordinates = self.lmsList
         #List of 23 landmark coordinates, each item being a list of 4 elements: [id, x, y, z]
         #Landmarks21 and 22 are the center of mass with and without fingers respectively. 
@@ -523,9 +523,11 @@ class HandTrackingDynamic:
         fingers, handMsg, handisClosed = self.findFingersOpen()
         #fingers is a list of 5 integers between 0 and 1. 
         #handMsg string that is either "closed", "partially open", or "open". 
-        #handisClosed is a boolean. 
+        #handisClosed is a boolean.
+        webcamDimensions = [h,w,_] = frame.shape
+        #A list which contains the height and width of webcam. 
 
-        return landmarkCoordinates, centerOfMassWithFingers, centerOfMassNoFingers, handIsUpright, thumbOnLeft, rotation, forwardTilt, sidewaysTilt, fingers, handMsg, handisClosed
+        return landmarkCoordinates, centerOfMassWithFingers, centerOfMassNoFingers, handIsUpright, thumbOnLeft, rotation, forwardTilt, sidewaysTilt, fingers, handMsg, handisClosed, webcamDimensions
     
 
 def main():
