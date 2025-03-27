@@ -17,7 +17,7 @@ async def send_angles(angles, handIsClosed, servo4_angle, servo5_angle):
                 int(np.degrees(angles[1])),       # t2
                 180-int(np.degrees(angles[2])+150),      # t3 (negative)
                 servo4_angle, servo5_angle,          # Fixed angle for servo 4, variable for servo 5
-                0 if handIsClosed else 120      # Servo 6 based on hand state
+                30 if handIsClosed else 90      # Servo 6 based on hand state
             ]
             data = {"servo_angles": servo_angles}
             message = json.dumps(data)
@@ -31,8 +31,7 @@ def main():
     servo2_angle = 90
     servo3_angle = 90
     servo4_angle = 90
-    servo4_angle = 90
-    servo5_angle = 70
+    servo5_angle = 90
 
     ctime = 0
     ptime = 0
@@ -48,12 +47,12 @@ def main():
         exit()
 
     # Initialize robotic arm parameters
-    a1, a2, a3 = 2, 4.75, 7.5  # Link lengths
+    a1, a2, a3 = 2, 4.75, 6  # Link lengths
     Z0 = 3.75  # Base height
 
     # Reference point for hand tracking
     #reference_point = np.array([550, 250, 1900])
-    reference_point = np.array([550, 240, 1400])  
+    reference_point = np.array([550, 240, 1500])  
 
     while True:
         ret, frame = cap.read()
@@ -83,10 +82,10 @@ def main():
                 servo5_angle = min(140, servo5_angle + 4)  # Increment but don't exceed 160
 
             # Update servo4_angle based on rotation, keeping within bounds
-            if rotation >= 0.35 and servo4_angle > 20:
-                servo4_angle = max(20, servo4_angle - 2)  # Decrement but don't go below 20
-            elif rotation <= -0.35 and servo4_angle < 160:
-                servo4_angle = min(160, servo4_angle + 2)  # Increment but don't exceed 160
+            if rotation >= 0.35 and servo4_angle > 00:
+                servo4_angle = max(0, servo4_angle - 2)  # Decrement but don't go below 20
+            elif rotation <= -0.35 and servo4_angle < 180:
+                servo4_angle = min(180, servo4_angle + 2)  # Increment but don't exceed 160
             centerOfMassWithFingers, centerOfMassNoFingers = detector.findAndMarkCenterOfMass(frame)
             fingers, handMsg, handIsClosed = detector.findFingersOpen()
 
@@ -97,9 +96,9 @@ def main():
             #X = 7 - displacement[2]/125
             #Y = (-displacement[0]/135)**3
             #Z = 5 + (displacement[1]/100)**3
-            X = 7 - displacement[2]/125
-            Y = (-displacement[0]/80)
-            Z = 6 + (displacement[1]/70)
+            X = 5 - displacement[2]/150
+            Y = (-displacement[0]/75)
+            Z = 6 + (displacement[1]/60)
 
             try:
                 # Calculate inverse kinematics
@@ -151,13 +150,13 @@ def main():
                 new_angles = (np.degrees(angles[0]), np.degrees(angles[1]), np.degrees(angles[2]))
 
                 # Check if angles have changed significantly (> 2 degrees)
-                should_update = False
-                if 'servo1_angle' not in locals() or abs(new_angles[0] - servo1_angle) > 2 or \
-                   abs(new_angles[1] - servo2_angle) > 2 or abs(new_angles[2] - servo3_angle) > 2:
-                    should_update = True
-                    servo1_angle = new_angles[0]
-                    servo2_angle = new_angles[1]
-                    servo3_angle = new_angles[2]
+                #should_update = False
+                #if 'servo1_angle' not in locals() or abs(new_angles[0] - servo1_angle) > 2 or \
+                #   abs(new_angles[1] - servo2_angle) > 2 or abs(new_angles[2] - servo3_angle) > 2:
+                #    should_update = True
+                #    servo1_angle = new_angles[0]
+                #    servo2_angle = new_angles[1]
+                #    servo3_angle = new_angles[2]
 
                 print('\nCalculated Joint Angles in Degrees:')
                 print(f't1: {new_angles[0]:.2f}°')
@@ -165,8 +164,8 @@ def main():
                 print(f't3: {new_angles[2]:.2f}°')
 
                 # Only send angles if they've changed significantly
-                if should_update:
-                    asyncio.run(send_angles(angles, handIsClosed, servo4_angle, servo5_angle))
+                #if should_update:
+                asyncio.run(send_angles(angles, handIsClosed, servo4_angle, servo5_angle))
 
             except ValueError as e:
                 print(f"Inverse kinematics error: {e}")

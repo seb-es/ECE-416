@@ -548,7 +548,7 @@ class HandTrackingDynamic:
         webcamDimensions = [h,w,_] = frame.shape
         #A list which contains the height and width of webcam. 
 
-        return landmarkCoordinates, centerOfMassWithFingers, centerOfMassNoFingers, handIsUpright, thumbOnLeft, rotation, forwardTilt, sidewaysTilt, fingers, handMsg, handisClosed, webcamDimensions
+        return landmarkCoordinates, centerOfMassWithFingers, centerOfMassNoFingers, handIsUpright, thumbOnLeft, handVerticalOrientationXY, handHorizontalOrientationXY, rotation, forwardTilt, sidewaysTilt, fingers, handMsg, handisClosed, webcamDimensions
     
 
 def main():
