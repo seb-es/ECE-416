@@ -16,8 +16,8 @@ async def send_angles(angles, handIsClosed, servo4_angle, servo5_angle):
                 int(np.degrees(angles[0])) + 90,  # t1 offset
                 int(np.degrees(angles[1])),       # t2
                 180-int(np.degrees(angles[2])+150),      # t3 (negative)
-                servo4_angle, servo5_angle,          # Fixed angle for servo 4, variable for servo 5
-                30 if handIsClosed else 90      # Servo 6 based on hand state
+                90, servo5_angle,          # Fixed angle for servo 4, variable for servo 5
+                25 if handIsClosed else 110      # Servo 6 based on hand state
             ]
             data = {"servo_angles": servo_angles}
             message = json.dumps(data)
@@ -30,7 +30,7 @@ def main():
     servo1_angle = 90
     servo2_angle = 90
     servo3_angle = 90
-    servo4_angle = 90
+    servo4_angle = 0
     servo5_angle = 90
 
     ctime = 0
@@ -47,12 +47,12 @@ def main():
         exit()
 
     # Initialize robotic arm parameters
-    a1, a2, a3 = 2, 4.75, 6  # Link lengths
+    a1, a2, a3 = 2, 4.75, 7  # Link lengths
     Z0 = 3.75  # Base height
 
     # Reference point for hand tracking
     #reference_point = np.array([550, 250, 1900])
-    reference_point = np.array([550, 240, 1500])  
+    reference_point = np.array([550, 240, 1900])
 
     while True:
         ret, frame = cap.read()
@@ -76,15 +76,15 @@ def main():
             rotation = max(min(rotation, 0.5), -0.5)  # Clamp rotation between -0.5 and 0.5
             
             # Update servo5_angle based on forwardTilt, keeping within bounds
-            if forwardTilt >= 0.35 and servo5_angle > 20:
+            if forwardTilt >= 0.5 and servo5_angle > 20:
                 servo5_angle = max(40, servo5_angle - 4)  # Decrement but don't go below 20
-            elif forwardTilt <= -0.35 and servo5_angle < 160:
+            elif forwardTilt <= -0.5 and servo5_angle < 160:
                 servo5_angle = min(140, servo5_angle + 4)  # Increment but don't exceed 160
 
             # Update servo4_angle based on rotation, keeping within bounds
-            if rotation >= 0.35 and servo4_angle > 00:
+            if rotation >= 0.5 and servo4_angle > 0:
                 servo4_angle = max(0, servo4_angle - 2)  # Decrement but don't go below 20
-            elif rotation <= -0.35 and servo4_angle < 180:
+            elif rotation <= -0.5 and servo4_angle < 180:
                 servo4_angle = min(180, servo4_angle + 2)  # Increment but don't exceed 160
             centerOfMassWithFingers, centerOfMassNoFingers = detector.findAndMarkCenterOfMass(frame)
             fingers, handMsg, handIsClosed = detector.findFingersOpen()
@@ -92,13 +92,25 @@ def main():
             # Calculate displacement from reference point
             displacement = np.array(centerOfMassNoFingers[1:4]) - reference_point
 
-            # Map hand position to robot target coordinates
-            #X = 7 - displacement[2]/125
-            #Y = (-displacement[0]/135)**3
-            #Z = 5 + (displacement[1]/100)**3
-            X = 5 - displacement[2]/150
-            Y = (-displacement[0]/75)
-            Z = 6 + (displacement[1]/60)
+            deadzone_threshold_xy = np.array([100, 100])  # X and Y tolerance (adjust as needed)
+
+            current_position = np.array(centerOfMassNoFingers[1:4])  # [X, Y, Z]
+            offset_xy = np.abs(current_position[:2] - reference_point[:2])  # Only X and Y
+
+            if np.any(offset_xy > deadzone_threshold_xy):
+                # Outside deadzone in X or Y — calculate full displacement
+                displacement = current_position - reference_point
+
+                X = max(0.5, 7 - displacement[2]/100)
+                Y = (-displacement[0]/80)
+                Z = 5 + (displacement[1]/60)
+            else:
+                # Inside deadzone (for X and Y), only update Z
+                displacement = current_position - reference_point
+
+                X = max(0.5, 7 - displacement[2]/100)
+                Y = 0  # or keep previous Y if you want to freeze it
+                Z = 5 + (displacement[1]/60)
 
             try:
                 # Calculate inverse kinematics
@@ -108,6 +120,7 @@ def main():
                 
                 # Check t1 constraint (-90° to 90°)
                 if not (-np.pi/2 <= t1 <= np.pi/2):
+                    print(f"X value: {X}, Y value: {Y}")
                     raise ValueError("t1 angle outside valid range [-90°, 90°]")
                     
                 X0 = A * np.cos(t1)  # Base joint X position
@@ -115,10 +128,44 @@ def main():
 
                 # Compute intermediate value D
                 D = ((X - X0) ** 2 + (Y - Y0) ** 2 + (Z - Z0) ** 2 - a2 - a3) / (2 * a2 * a3)
+                max_reach = a2 + a3
+                min_reach = 4
+                # Define your vector (e.g., from origin to target)
+
+                #Compute vector from base to target
+                dx = X - X0
+                dy = Y - Y0
+                dz = Z - Z0
+
+                # Compute distance (norm)
+                distance = np.sqrt(dx**2 + dy**2 + dz**2)
+
+                # Clamp to max reach if needed
+                if distance > max_reach:
+                    # Normalize direction
+                    dx /= distance
+                    dy /= distance
+                    dz /= distance
+
+                    # Set new clamped position
+                    X = X0 + dx * max_reach
+                    Y = Y0 + dy * max_reach
+                    Z = Z0 + dz * max_reach
+                elif distance < min_reach:
+                # Too close → push out to min
+                    scale = min_reach / (distance + 1e-8)  # avoid divide by zero
+                    dx *= scale
+                    dy *= scale
+                    dz *= scale
+
+                    X = X0 + dx
+                    Y = Y0 + dy
+                    Z = Z0 + dz
 
                 # Ensure D is within valid range for acos
                 if np.abs(D) > 1:
-                    raise ValueError("Target position is unreachable")
+                    D = 1
+                    #raise ValueError("Target position is unreachable")
 
                 # Compute t3 (elbow-up and elbow-down)
                 t3_up = np.arctan2(np.sqrt(1 - D**2), D)
@@ -134,6 +181,12 @@ def main():
                 # For t3_down  
                 phi2_down = np.arctan2(a3 * np.sin(t3_down), a2 + a3 * np.cos(t3_down))
                 t2_down = phi1 - phi2_down
+
+                # Lock angles within constraints
+                #t2_up = max(0, min(t2_up, np.pi))
+                #t3_up = max(-5*np.pi/6, min(t3_up, np.pi/6))
+                #t2_down = max(0, min(t2_down, np.pi))
+                #t3_down = max(-5*np.pi/6, min(t3_down, np.pi/6))
 
                 # Check angle constraints and select valid solution
                 angles = None
