@@ -30,10 +30,33 @@ def solve_angles(X, Y, Z, X0, Y0, Z0, a2, a3):
     numerator = (X - X0)**2 + (Y - Y0)**2 + (Z - Z0)**2 - a2**2 - a3**2
     denominator = 2 * a2 * a3
     D = numerator / denominator
+    max_reach = a2 + a3
+    # Define your vector (e.g., from origin to target)
+
+    #Compute vector from base to target
+    dx = X - X0
+    dy = Y - Y0
+    dz = Z - Z0
+
+    # Compute distance (norm)
+    distance = np.sqrt(dx**2 + dy**2 + dz**2)
+
+    # Clamp to max reach if needed
+    if distance > max_reach:
+        # Normalize direction
+        dx /= distance
+        dy /= distance
+        dz /= distance
+
+        # Set new clamped position
+        X = X0 + dx * max_reach
+        Y = Y0 + dy * max_reach
+        Z = Z0 + dz * max_reach
 
     # Ensure D is within valid range for acos
     if abs(D) > 1:
-        raise ValueError("Target position is unreachable")
+        D = 1
+        #raise ValueError("Target position is unreachable")
 
     # Compute both possible t3 solutions (elbow-up and elbow-down)
     t3_up = np.arctan2(np.sqrt(1 - D**2), D)
