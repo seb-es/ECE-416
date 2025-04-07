@@ -239,7 +239,7 @@ class HandTrackingDynamic:
         _, thumbOnLeft, _, _ = self.findOrientation()
         frame = self.drawMarkers(self.tipIds[1] - 3, self.tipIds[4] - 3, "red", frame)
 
-        bufferAndScalingFactor = 0.1
+        bufferAndScalingFactor = 0.075
             #A value from 0-1 which determines how much the hand needs to be rotated from the starting position to activate rotation tracking and also how senstive the rotation is past this buffer point.
         
         if not hasattr(HandTrackingDynamic, 'maxPalmLength'):
@@ -267,9 +267,9 @@ class HandTrackingDynamic:
 
         if ((pointerBaseKnuckleZ > pinkieBaseKnuckleZ) and thumbOnLeft) or \
            ((pointerBaseKnuckleZ < pinkieBaseKnuckleZ) and not(thumbOnLeft)):
-            rotation =  unsignedRotation * 1.5
+            rotation =  unsignedRotation * 4
         else: 
-            rotation = unsignedRotation * -1 * 2.1
+            rotation = unsignedRotation * -1 * 5
 
                     #If the hand rotates to the left, the rotation value will cause counterclockwise (positive) rotaiton. If not, counter-clockwise (negative) rotation will occur. 
                     #Statements have been made such that this behavior occurs regardless of hand being used. 
@@ -302,7 +302,7 @@ class HandTrackingDynamic:
         wTMFBKDist_XY = wTMFBKDist[0]
         handIsUpright, _, _, _ = self.findOrientation()
 
-        forwardBufferAndScalingFactor = 0.1
+        forwardBufferAndScalingFactor = 0.075
         
         if not hasattr(HandTrackingDynamic, 'max_wTMFBKDist'):
             HandTrackingDynamic.max_wTMFBKDist = wTMFBKDist_XY
@@ -323,15 +323,15 @@ class HandTrackingDynamic:
             unsignedForwardTilt = ((unbufferedForwardTilt- forwardBufferAndScalingFactor)/(1 - forwardBufferAndScalingFactor))
                 # This kicks in when tilt actually starts to get counted from the starting position only and scales it such that its still in the 0-1 range. 
         elif not(handIsUpright):
-            unsignedForwardTilt = unbufferedForwardTilt * 1.75
+            unsignedForwardTilt = unbufferedForwardTilt 
                 #Condition for when the hand is downward, when buffering isn't needed. 
         else: 
             unsignedForwardTilt= 0
 
         if middleFingerSecondKnuckleZ < wristZ:
-            forwardTilt = unsignedForwardTilt
+            forwardTilt = unsignedForwardTilt * 3.5
         else:
-            forwardTilt = unsignedForwardTilt * -1 * 1.5
+            forwardTilt = unsignedForwardTilt * -1 * 5
                 #forwardTils is postive (forward) when middle finger base knuckle is in front of wrist. Otherwise, negative. 
                 #Given a little kick to make up for the lack of backwards mobility in the hand from starting position. 
 
@@ -446,14 +446,13 @@ class HandTrackingDynamic:
 
        #Thumb orientation. 
         if handIsUpright:
-            centerOfMassttoThumbTipDistance, _ , _ , _ = self.defineDistanceAndOrientation(22, self.tipIds[0])
-            centerOfMassttoThumbComparisonKnuckleDistance, _ , _ , _ = self.defineDistanceAndOrientation(22, self.tipIds[0] - 1)
-                #When hand is upright, use center of mass with fingers as the point of comparison. 
+            centerOfMassttoThumbTipDistance, _ , _ , _ = self.defineDistanceAndOrientation(21, self.tipIds[0])
+            centerOfMassttoThumbComparisonKnuckleDistance, _ , _ , _ = self.defineDistanceAndOrientation(21, self.tipIds[0] - 1)
 
         else: 
-            centerOfMassttoThumbTipDistance, _ , _ , _ = self.defineDistanceAndOrientation(21, self.tipIds[0] - 1)
-            centerOfMassttoThumbComparisonKnuckleDistance, _ , _ , _ = self.defineDistanceAndOrientation(21, self.tipIds[0] - 3)   
-                #When the hand isn't upright, the detection works better when the point of comparison is center of mass without fingers. 
+            centerOfMassttoThumbTipDistance, _ , _ , _ = self.defineDistanceAndOrientation(21, self.tipIds[0] -2)
+            centerOfMassttoThumbComparisonKnuckleDistance, _ , _ , _ = self.defineDistanceAndOrientation(21, self.tipIds[0] - 1)    
+            #Different comparison points.
 
         centerOfMassttoThumbTipDistanceXY = abs(centerOfMassttoThumbTipDistance[0])
                 #measures XY distance from center of mass to finger tip. 

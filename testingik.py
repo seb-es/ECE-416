@@ -19,20 +19,57 @@ def inverse_kinematics(X, Y, Z, a1, a2, a3, Z0):
     # Compute X0 and Y0 using the base radius
     A = np.sqrt(a1**2 - Z0)  # Intermediate step to simplify calculations
     t1 = np.arctan2(Y, X)  # Base rotation
-    
-    # Check t1 constraint (-90° to 90°)
-    if not (-np.pi/2 <= t1 <= np.pi/2):
-        raise ValueError("t1 angle outside valid range [-90°, 90°]")
+    # Adjust t1 to fit within -90° to 90°
+    while t1 > np.pi/2:
+        t1 -= np.pi
+    while t1 < -np.pi/2:
+        t1 += np.pi
         
     X0 = A * np.cos(t1)  # Base joint X position
     Y0 = A * np.sin(t1)  # Base joint Y position
 
+    max_reach = a2 + a3
+    min_reach = 3
+    # Define your vector (e.g., from origin to target)
+
+    #Compute vector from base to target
+    dx = X - X0
+    dy = Y - Y0
+    dz = Z - Z0
+
+    # Compute distance (norm)
+    distance = np.sqrt(dx**2 + dy**2 + dz**2)
+
+    # Clamp to max reach if needed
+    if distance > max_reach:
+        # Normalize direction
+        dx /= distance
+        dy /= distance
+        dz /= distance
+
+        # Set new clamped position
+        X = X0 + dx * max_reach
+        Y = Y0 + dy * max_reach
+        Z = Z0 + dz * max_reach
+    elif distance < min_reach:
+        # Too close → push out to min
+        scale = min_reach / (distance + 1e-8)  # avoid divide by zero
+        dx *= scale
+        dy *= scale
+        dz *= scale
+
+        X = X0 + dx
+        Y = Y0 + dy
+        Z = Z0 + dz
     # Compute intermediate value D
     D = ((X - X0) ** 2 + (Y - Y0) ** 2 + (Z - Z0) ** 2 - a2**2 - a3**2) / (2 * a2 * a3)
 
     # Ensure D is within valid range for acos
     if np.abs(D) > 1:
-        raise ValueError("Target position is unreachable. Check input values.")
+        D = 1
+        #raise ValueError(f"Target position is unreachable. Check input values. D value: {D}")
+    
+    
 
     # Compute both possible t3 (elbow-up and elbow-down)
     t3_up = np.arctan2(np.sqrt(1 - D**2), D)
@@ -69,7 +106,7 @@ def inverse_kinematics(X, Y, Z, a1, a2, a3, Z0):
 # ------------------------------
 # Example input values (Target end-effector position)
 # ------------------------------
-X_target, Y_target, Z_target = 8, 0, 5  # Replace with desired XYZ coordinates
+X_target, Y_target, Z_target = 0.500, 1000, 5  # Replace with desired XYZ coordinates
 a1, a2, a3 = 2, 4.75, 7.5  # Link lengths
 Z0 = 3.75  # Base height
 
