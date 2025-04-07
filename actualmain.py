@@ -197,7 +197,8 @@ def main():
                         angles = (t1, t2_up, t3_up)
                     elif (0 <= t2_down <= np.pi and -5*np.pi/6 <= t3_down <= np.pi/6):
                         angles = (t1, t2_down, t3_down)
-                
+                else:
+                    angles = prev_angles
                 if angles is None:
                     raise ValueError("No solutions found within angle constraints")
 
