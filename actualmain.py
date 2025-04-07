@@ -75,7 +75,6 @@ def main():
             forwardTilt = max(min(forwardTilt, 0.5), -0.5)  # Clamp forwardTilt between -0.5 and 0.5
             rotation = max(min(rotation, 0.5), -0.5)  # Clamp rotation between -0.5 and 0.5
             sidewaysTilt = -1 * max(min(sidewaysTilt, 0.5), -0.5)  # Clamp sidewaysTilt between -0.5 and 0.5. Also inverted.
-     
 
             # Update servo5_angle based on forwardTilt, keeping within bounds
             if forwardTilt >= 0.3 and servo5_angle > 20:
