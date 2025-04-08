@@ -104,9 +104,9 @@ def main():
                 # Outside deadzone in X or Y — calculate full displacement
                 displacement = current_position - reference_point
 
-                X = max(0.5, 7 - displacement[2]/50)
+                X = max(0.5, 7 - displacement[2]/60)
                 Y = (-displacement[0]/60)
-                Z = 5 + (displacement[1]/40)
+                Z = 5 + (displacement[1]/60)
             else:
                 # Inside deadzone (for X and Y), only update Z
                 displacement = current_position - reference_point
