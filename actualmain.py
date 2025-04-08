@@ -17,7 +17,7 @@ async def send_angles(angles, handIsClosed, servo4_angle, servo5_angle):
                 int(np.degrees(angles[1])),       # t2
                 180-int(np.degrees(angles[2])+150),      # t3 (negative)
                 servo4_angle, servo5_angle,          # Fixed angle for servo 4, variable for servo 5
-                5 if handIsClosed else 110      # Servo 6 based on hand state
+                0 if handIsClosed else 110      # Servo 6 based on hand state
             ]
             data = {"servo_angles": servo_angles}
             message = json.dumps(data)
@@ -30,7 +30,7 @@ def main():
     servo1_angle = 90
     servo2_angle = 90
     servo3_angle = 90
-    servo4_angle = 0
+    servo4_angle = 90
     servo5_angle = 90
 
     ctime = 0
@@ -54,6 +54,8 @@ def main():
     #reference_point = np.array([550, 250, 1900])
     reference_point = np.array([550, 240, 1900])
     prev_angles = None
+    # Store the last valid angles outside the loop
+    last_valid_angles = None
     while True:
         ret, frame = cap.read()
         frame = detector.processAndCorrectView(frame)
@@ -113,122 +115,132 @@ def main():
                 Y = 0  # or keep previous Y if you want to freeze it
                 Z = 5 + (displacement[1]/60)
 
-            try:
-                # Calculate inverse kinematics
-                # Compute X0 and Y0 using the base radius
-                A = np.sqrt(a1**2 - Z0)
-                t1 = np.arctan2(Y, X)  # Base rotation
-                
-                # Ensure t1 is within the range [-90°, 90°]
-                if not (-90 <= t1 <= 90):
-                    print(f"X value: {X}, Y value: {Y}")
-                    raise ValueError("t1 angle outside valid range [-90°, 90°]")
+            if fingers[0] == 0:
+                if last_valid_angles is not None:
+                    # Skip all the inverse kinematics calculations and use last valid angles
+                    asyncio.run(send_angles(last_valid_angles, handIsClosed, servo4_angle, servo5_angle))
+            else:
+                try:
+                    # Calculate inverse kinematics
+                    # Compute X0 and Y0 using the base radius
+                    A = np.sqrt(a1**2 - Z0)
+                    t1 = np.arctan2(Y, X)  # Base rotation
                     
-                X0 = A * np.cos(t1)  # Base joint X position
-                Y0 = A * np.sin(t1)  # Base joint Y position
+                    # Ensure t1 is within the range [-90°, 90°]
+                    if not (-90 <= t1 <= 90):
+                        print(f"X value: {X}, Y value: {Y}")
+                        raise ValueError("t1 angle outside valid range [-90°, 90°]")
+                        
+                    X0 = A * np.cos(t1)  # Base joint X position
+                    Y0 = A * np.sin(t1)  # Base joint Y position
 
-                # Compute intermediate value D
-                D = ((X - X0) ** 2 + (Y - Y0) ** 2 + (Z - Z0) ** 2 - a2 - a3) / (2 * a2 * a3)
-                max_reach = a2 + a3
-                min_reach = 3
-                # Define your vector (e.g., from origin to target)
+                    # Compute intermediate value D
+                    D = ((X - X0) ** 2 + (Y - Y0) ** 2 + (Z - Z0) ** 2 - a2 - a3) / (2 * a2 * a3)
+                    max_reach = a2 + a3
+                    min_reach = 3
+                    # Define your vector (e.g., from origin to target)
 
-                #Compute vector from base to target
-                dx = X - X0
-                dy = Y - Y0
-                dz = Z - Z0
+                    #Compute vector from base to target
+                    dx = X - X0
+                    dy = Y - Y0
+                    dz = Z - Z0
 
-                # Compute distance (norm)
-                distance = np.sqrt(dx**2 + dy**2 + dz**2)
+                    # Compute distance (norm)
+                    distance = np.sqrt(dx**2 + dy**2 + dz**2)
 
-                # Clamp to max reach if needed
-                if distance > max_reach:
-                    # Normalize direction
-                    dx /= distance
-                    dy /= distance
-                    dz /= distance
+                    # Clamp to max reach if needed
+                    if distance > max_reach:
+                        # Normalize direction
+                        dx /= distance
+                        dy /= distance
+                        dz /= distance
 
-                    # Set new clamped position
-                    X = X0 + dx * max_reach
-                    Y = Y0 + dy * max_reach
-                    Z = Z0 + dz * max_reach
-                elif distance < min_reach:
-                # Too close → push out to min
-                    scale = min_reach / (distance + 1e-8)  # avoid divide by zero
-                    dx *= scale
-                    dy *= scale
-                    dz *= scale
+                        # Set new clamped position
+                        X = X0 + dx * max_reach
+                        Y = Y0 + dy * max_reach
+                        Z = Z0 + dz * max_reach
+                    elif distance < min_reach:
+                    # Too close → push out to min
+                        scale = min_reach / (distance + 1e-8)  # avoid divide by zero
+                        dx *= scale
+                        dy *= scale
+                        dz *= scale
 
-                    X = X0 + dx
-                    Y = Y0 + dy
-                    Z = Z0 + dz
+                        X = X0 + dx
+                        Y = Y0 + dy
+                        Z = Z0 + dz
 
-                # Ensure D is within valid range for acos
-                if np.abs(D) > 1:
-                    D = 1
-                    #raise ValueError("Target position is unreachable")
+                    # Ensure D is within valid range for acos
+                    if np.abs(D) > 1:
+                        D = 1
+                        #raise ValueError("Target position is unreachable")
 
-                # Compute t3 (elbow-up and elbow-down)
-                t3_up = np.arctan2(np.sqrt(1 - D**2), D)
-                t3_down = np.arctan2(-np.sqrt(1 - D**2), D)
+                    # Compute t3 (elbow-up and elbow-down)
+                    t3_up = np.arctan2(np.sqrt(1 - D**2), D)
+                    t3_down = np.arctan2(-np.sqrt(1 - D**2), D)
 
-                # Compute t2 for both configurations
-                phi1 = np.arctan2(Z - Z0, np.sqrt((X - X0) ** 2 + (Y - Y0) ** 2))
-                
-                # For t3_up
-                phi2_up = np.arctan2(a3 * np.sin(t3_up), a2 + a3 * np.cos(t3_up))
-                t2_up = phi1 - phi2_up
-                
-                # For t3_down  
-                phi2_down = np.arctan2(a3 * np.sin(t3_down), a2 + a3 * np.cos(t3_down))
-                t2_down = phi1 - phi2_down
+                    # Compute t2 for both configurations
+                    phi1 = np.arctan2(Z - Z0, np.sqrt((X - X0) ** 2 + (Y - Y0) ** 2))
+                    
+                    # For t3_up
+                    phi2_up = np.arctan2(a3 * np.sin(t3_up), a2 + a3 * np.cos(t3_up))
+                    t2_up = phi1 - phi2_up
+                    
+                    # For t3_down  
+                    phi2_down = np.arctan2(a3 * np.sin(t3_down), a2 + a3 * np.cos(t3_down))
+                    t2_down = phi1 - phi2_down
 
-                # Lock angles within constraints
-                #t2_up = max(0, min(t2_up, np.pi))
-                #t3_up = max(-5*np.pi/6, min(t3_up, np.pi/6))
-                #t2_down = max(0, min(t2_down, np.pi))
-                #t3_down = max(-5*np.pi/6, min(t3_down, np.pi/6))
+                    # Lock angles within constraints
+                    #t2_up = max(0, min(t2_up, np.pi))
+                    #t3_up = max(-5*np.pi/6, min(t3_up, np.pi/6))
+                    #t2_down = max(0, min(t2_down, np.pi))
+                    #t3_down = max(-5*np.pi/6, min(t3_down, np.pi/6))
 
-                # Check angle constraints and select valid solution
-                angles = None
-                
-                if (0 <= t2_up <= np.pi and -5*np.pi/6 <= t3_up <= np.pi/6):
-                    angles = (t1, t2_up, t3_up)
-                elif (0 <= t2_down <= np.pi and -5*np.pi/6 <= t3_down <= np.pi/6):
-                    angles = (t1, t2_down, t3_down)
-                
-                if angles is None:
-                    raise ValueError("No solutions found within angle constraints")
-
-                prev_angles = angles
-
-                # Convert angles to degrees
-                new_angles = (np.degrees(angles[0]), np.degrees(angles[1]), np.degrees(angles[2]))
-
-                # Check if angles have changed significantly (> 2 degrees)
-                #should_update = False
-                #if 'servo1_angle' not in locals() or abs(new_angles[0] - servo1_angle) > 2 or \
-                #   abs(new_angles[1] - servo2_angle) > 2 or abs(new_angles[2] - servo3_angle) > 2:
-                #    should_update = True
-                #    servo1_angle = new_angles[0]
-                #    servo2_angle = new_angles[1]
-                #    servo3_angle = new_angles[2]
-
-                print('\nCalculated Joint Angles in Degrees:')
-                print(f't1: {new_angles[0]:.2f}°')
-                print(f't2: {new_angles[1]:.2f}°')
-                print(f't3: {new_angles[2]:.2f}°')
-
-                # Only send angles if they've changed significantly
-                #if should_update:
-                if fingers[0] == 0:
+                    # Check angle constraints and select valid solution
                     angles = None
-                
-                asyncio.run(send_angles(angles, handIsClosed, servo4_angle, servo5_angle))  
+                    
+                    if (0 <= t2_up <= np.pi and -5*np.pi/6 <= t3_up <= np.pi/6):
+                        angles = (t1, t2_up, t3_up)
+                    elif (0 <= t2_down <= np.pi and -5*np.pi/6 <= t3_down <= np.pi/6):
+                        angles = (t1, t2_down, t3_down)
+                    
+                    if angles is None:
+                        raise ValueError("No solutions found within angle constraints")
 
-            except ValueError as e:
-                print(f"Inverse kinematics error: {e}")
+                    prev_angles = angles
 
+                    # Convert angles to degrees
+                    new_angles = (np.degrees(angles[0]), np.degrees(angles[1]), np.degrees(angles[2]))
+
+                    # Check if angles have changed significantly (> 2 degrees)
+                    #should_update = False
+                    #if 'servo1_angle' not in locals() or abs(new_angles[0] - servo1_angle) > 2 or \
+                    #   abs(new_angles[1] - servo2_angle) > 2 or abs(new_angles[2] - servo3_angle) > 2:
+                    #    should_update = True
+                    #    servo1_angle = new_angles[0]
+                    #    servo2_angle = new_angles[1]
+                    #    servo3_angle = new_angles[2]
+
+                    print('\nCalculated Joint Angles in Degrees:')
+                    print(f't1: {new_angles[0]:.2f}°')
+                    print(f't2: {new_angles[1]:.2f}°')
+                    print(f't3: {new_angles[2]:.2f}°')
+
+                    # Only send angles if they've changed significantly
+                    #if should_update:
+                    if fingers[0] == 0:
+                        # Use the last valid angles for servos 1-3 when thumb is down
+                        asyncio.run(send_angles(last_valid_angles, handIsClosed, servo4_angle, servo5_angle))
+                    else:
+                        asyncio.run(send_angles(angles, handIsClosed, servo4_angle, servo5_angle))
+
+                    if angles is not None:
+                        last_valid_angles = angles  # Store the valid angles
+
+                except ValueError as e:
+                    print(f"Inverse kinematics error: {e}")
+
+            # Continue with screen updates regardless of thumb state
             cv2.putText(frame, ("Fingers Open: " + str(fingers) + " " + str(sum(fingers[0:5])) + "  Hand is " + handMsg), (5,60), cv2.FONT_HERSHEY_PLAIN, fontSize, (0,255,0), fontThickness)
             cv2.putText(frame, ("Rotation: " + str(rotation)), (5,90), cv2.FONT_HERSHEY_PLAIN, fontSize, (0,255,0), fontThickness)
             cv2.putText(frame, ("Forward Tilt: " + str(forwardTilt) + "  Sideways Tilt:" + str(sidewaysTilt)), (5,120), cv2.FONT_HERSHEY_PLAIN, fontSize, (0,255,0), fontThickness)
