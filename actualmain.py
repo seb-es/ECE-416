@@ -17,7 +17,7 @@ async def send_angles(angles, handIsClosed, servo4_angle, servo5_angle):
                 int(np.degrees(angles[1])),       # t2
                 180-int(np.degrees(angles[2])+150),      # t3 (negative)
                 servo4_angle, servo5_angle,          # Fixed angle for servo 4, variable for servo 5
-                25 if handIsClosed else 110      # Servo 6 based on hand state
+                5 if handIsClosed else 110      # Servo 6 based on hand state
             ]
             data = {"servo_angles": servo_angles}
             message = json.dumps(data)
@@ -191,11 +191,11 @@ def main():
 
                 # Check angle constraints and select valid solution
                 angles = None
-                if(prev_angles == None or fingers[0] == 1):
-                    if (0 <= t2_up <= np.pi and -5*np.pi/6 <= t3_up <= np.pi/6):
-                        angles = (t1, t2_up, t3_up)
-                    elif (0 <= t2_down <= np.pi and -5*np.pi/6 <= t3_down <= np.pi/6):
-                        angles = (t1, t2_down, t3_down)
+                
+                if (0 <= t2_up <= np.pi and -5*np.pi/6 <= t3_up <= np.pi/6):
+                    angles = (t1, t2_up, t3_up)
+                elif (0 <= t2_down <= np.pi and -5*np.pi/6 <= t3_down <= np.pi/6):
+                    angles = (t1, t2_down, t3_down)
                 
                 if angles is None:
                     raise ValueError("No solutions found within angle constraints")
@@ -221,7 +221,10 @@ def main():
 
                 # Only send angles if they've changed significantly
                 #if should_update:
-                asyncio.run(send_angles(angles, handIsClosed, servo4_angle, servo5_angle))
+                if fingers[0] == 0:
+                    angles = None
+                
+                asyncio.run(send_angles(angles, handIsClosed, servo4_angle, servo5_angle))  
 
             except ValueError as e:
                 print(f"Inverse kinematics error: {e}")
