@@ -302,7 +302,7 @@ class HandTrackingDynamic:
         wTMFBKDist_XY = wTMFBKDist[0]
         handIsUpright, _, _, _ = self.findOrientation()
 
-        forwardBufferAndScalingFactor = 0.075
+        forwardBufferAndScalingFactor = 0.05
         
         if not hasattr(HandTrackingDynamic, 'max_wTMFBKDist'):
             HandTrackingDynamic.max_wTMFBKDist = wTMFBKDist_XY
